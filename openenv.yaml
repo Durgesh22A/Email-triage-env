@@ -1,0 +1,42 @@
+name: email-triage-env
+version: "1.0.0"
+description: "An OpenEnv environment where an AI agent triages emails by priority, category, and action."
+author: "your-name"
+tags:
+  - openenv
+  - email
+  - triage
+  - nlp
+
+observation_space:
+  email_id: integer
+  subject: string
+  body: string
+  sender: string
+
+action_space:
+  priority:
+    type: categorical
+    values: ["urgent", "normal", "low"]
+  category:
+    type: categorical
+    values: ["support", "sales", "spam", "hr"]
+  action:
+    type: categorical
+    values: ["reply", "forward", "archive", "delete"]
+
+reward:
+  min: 0.0
+  max: 1.0
+  type: partial
+
+tasks:
+  - id: task1_easy
+    name: "Spam Detection"
+    difficulty: easy
+  - id: task2_medium
+    name: "Multi-label Triage"
+    difficulty: medium
+  - id: task3_hard
+    name: "Crisis Triage"
+    difficulty: hard
