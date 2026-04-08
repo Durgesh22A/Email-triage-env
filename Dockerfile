@@ -1,23 +1,21 @@
-FROM python:3.12-slim
+FROM python:3.9-slim
 
-# Create user with UID 1000 for Hugging Face compatibility
+# Create a non-root user
 RUN useradd -m -u 1000 user
 USER user
-ENV PATH="/home/user/.local/bin:$PATH"
+ENV PATH="/home/user/.local/bin:${PATH}"
 
 WORKDIR /app
 
-# Copy and install requirements
+# Copy requirements and install
 COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy the rest of the files
 COPY --chown=user . .
 
-ENV API_BASE_URL=""
-ENV MODEL_NAME=""
-ENV HF_TOKEN=""
-
+# EXPOSE port 7860 for Hugging Face
 EXPOSE 7860
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
+# Updated CMD to point to the new location of app.py
+CMD ["python", "server/app.py"]
