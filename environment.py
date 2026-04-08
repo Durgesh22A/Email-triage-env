@@ -1,16 +1,15 @@
 from pydantic import BaseModel
 from typing import Optional, List
-import random
 
 # ================================
-# TYPED MODELS
+# TYPED MODELS (OpenEnv Spec)
 # ================================
-
 class Observation(BaseModel):
     email_id: int
     subject: str
     body: str
     sender: str
+    task_difficulty: str
 
 class Action(BaseModel):
     priority: str      # "urgent", "normal", "low"
@@ -22,74 +21,67 @@ class Reward(BaseModel):
     reason: str
 
 # ================================
-# EMAIL DATA
+# TASKS DATABASE
 # ================================
-
-EMAILS = [
-    {
-        "email_id": 1,
-        "subject": "Production server is DOWN!",
-        "body": "Our website is completely down. Customers cannot login. Fix ASAP!",
-        "sender": "ops@company.com",
-        "correct": {"priority": "urgent", "category": "support", "action": "reply"}
-    },
-    {
-        "email_id": 2,
-        "subject": "Buy cheap followers now!!!",
-        "body": "Get 10,000 Instagram followers for just $5. Click here now!",
-        "sender": "promo@spamsite.com",
+TASKS_DB = {
+    "task1_easy": {
+        "email_id": 101,
+        "subject": "Win a FREE iPhone NOW!!!",
+        "body": "Congratulations! You have won a free iPhone. Click here to claim your prize immediately!",
+        "sender": "winner@scamsite.com",
+        "difficulty": "easy",
         "correct": {"priority": "low", "category": "spam", "action": "delete"}
     },
-    {
-        "email_id": 3,
-        "subject": "Interested in your product",
-        "body": "Hi, I saw your demo and I'm interested in buying. Can we schedule a call?",
-        "sender": "john@prospect.com",
-        "correct": {"priority": "normal", "category": "sales", "action": "reply"}
+    "task2_medium": {
+        "email_id": 102,
+        "subject": "Server slow + interested in upgrade",
+        "body": "Hey, our server has been slow lately. Also we are interested in upgrading our plan. Can someone get back to us?",
+        "sender": "client@bigcorp.com",
+        "difficulty": "medium",
+        "correct": {"priority": "normal", "category": "support", "action": "reply"}
     },
-    {
-        "email_id": 4,
-        "subject": "Leave application for next week",
-        "body": "I would like to apply for leave from Monday to Wednesday next week.",
-        "sender": "employee@company.com",
-        "correct": {"priority": "normal", "category": "hr", "action": "forward"}
-    },
-    {
-        "email_id": 5,
-        "subject": "URGENT: Payment gateway failing",
-        "body": "All payments are being declined since 2 hours. Revenue loss happening now!",
-        "sender": "finance@company.com",
-        "correct": {"priority": "urgent", "category": "support", "action": "reply"}
-    },
-]
+    "task3_hard": {
+        "email_id": 103,
+        "subject": "Re: Follow up on invoice #4521",
+        "body": "This is the 3rd reminder. Our payment of $50,000 is overdue by 60 days. If not resolved in 24 hours we will take legal action.",
+        "sender": "legal@enterprise-client.com",
+        "difficulty": "hard",
+        "correct": {"priority": "urgent", "category": "sales", "action": "forward"}
+    }
+}
 
 # ================================
 # ENVIRONMENT CLASS
 # ================================
-
 class EmailTriageEnv:
-    def __init__(self):
-        self.current_email = None
+    def __init__(self, task_name="task1_easy"):
+        if task_name not in TASKS_DB:
+            raise ValueError(f"Task {task_name} not found!")
+        self.task_name = task_name
+        self.current_task = TASKS_DB[self.task_name]
         self.step_count = 0
         self.done = False
 
     def reset(self) -> Observation:
-        """Start fresh - pick a random email"""
         self.step_count = 0
         self.done = False
-        self.current_email = random.choice(EMAILS)
-        return Observation(**{k: self.current_email[k] for k in ["email_id", "subject", "body", "sender"]})
+        return Observation(
+            email_id=self.current_task["email_id"],
+            subject=self.current_task["subject"],
+            body=self.current_task["body"],
+            sender=self.current_task["sender"],
+            task_difficulty=self.current_task["difficulty"]
+        )
 
     def step(self, action: Action) -> tuple:
-        """Agent takes action, we return reward"""
         if self.done:
             raise ValueError("Episode is done. Call reset() first.")
 
-        correct = self.current_email["correct"]
+        correct = self.current_task["correct"]
         score = 0.0
         reasons = []
 
-        # Score each field
+        # Grading logic
         if action.priority == correct["priority"]:
             score += 0.4
             reasons.append("priority correct (+0.4)")
@@ -109,17 +101,22 @@ class EmailTriageEnv:
             reasons.append(f"action wrong (expected {correct['action']})")
 
         self.step_count += 1
-        self.done = True  # one email = one episode
+        self.done = True # One action finishes the episode
 
         reward = Reward(score=round(score, 2), reason=", ".join(reasons))
-        observation = Observation(**{k: self.current_email[k] for k in ["email_id", "subject", "body", "sender"]})
+        observation = Observation(
+            email_id=self.current_task["email_id"],
+            subject=self.current_task["subject"],
+            body=self.current_task["body"],
+            sender=self.current_task["sender"],
+            task_difficulty=self.current_task["difficulty"]
+        )
 
         return observation, reward, self.done, {"step": self.step_count}
 
     def state(self) -> dict:
-        """Return current state"""
         return {
-            "current_email_id": self.current_email["email_id"] if self.current_email else None,
+            "current_task": self.task_name,
             "step_count": self.step_count,
             "done": self.done
         }

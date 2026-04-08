@@ -1,30 +1,31 @@
 import os
 import json
 from openai import OpenAI
-from environment import EmailTriageEnv, Action
-from tasks.task1_easy import TASK1, grade as grade1
-from tasks.task2_medium import TASK2, grade as grade2
-from tasks.task3_hard import TASK3, grade as grade3
+from environment import EmailTriageEnv
 
 # ================================
 # SETUP CLIENT
 # ================================
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.groq.com/openai/v1")
+MODEL_NAME = os.environ.get("MODEL_NAME", "llama-3.1-8b-instant")
+HF_TOKEN = os.environ.get("HF_TOKEN")
+
+if not HF_TOKEN:
+    raise ValueError("HF_TOKEN environment variable is required")
+
 client = OpenAI(
-    base_url=os.environ.get("API_BASE_URL", "https://api.openai.com/v1"),
-    api_key=os.environ.get("HF_TOKEN", "your-key-here"),
+    base_url=API_BASE_URL,
+    api_key=HF_TOKEN,
 )
-MODEL = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
 # ================================
-# ASK LLM TO TRIAGE EMAIL
+# ASK LLM
 # ================================
-def ask_agent(email: dict) -> Action:
+def ask_agent(observation) -> dict:
     prompt = f"""You are an email triage assistant.
-
-Email Details:
-- Subject: {email['subject']}
-- From: {email['sender']}
-- Body: {email['body']}
+    
+Observation Details:
+{observation}
 
 Classify this email by responding ONLY with valid JSON like this:
 {{
@@ -32,66 +33,74 @@ Classify this email by responding ONLY with valid JSON like this:
   "category": "support" or "sales" or "spam" or "hr",
   "action": "reply" or "forward" or "archive" or "delete"
 }}
-
 Respond with JSON only. No explanation."""
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=100,
-    )
-
-    text = response.choices[0].message.content.strip()
-    # Clean up if LLM adds markdown
-    text = text.replace("```json", "").replace("```", "").strip()
-    data = json.loads(text)
-    return Action(**data)
-
-# ================================
-# RUN ONE TASK
-# ================================
-def run_task(task: dict, grade_fn):
-    email = task["email"]
-    task_id = task["task_id"]
-
-    print(json.dumps({
-        "event": "START",
-        "task_id": task_id,
-        "difficulty": task["difficulty"],
-        "subject": email["subject"]
-    }))
-
-    action = ask_agent(email)
-
-    print(json.dumps({
-        "event": "STEP",
-        "task_id": task_id,
-        "action": action.model_dump()
-    }))
-
-    score = grade_fn(action)
-
-    print(json.dumps({
-        "event": "END",
-        "task_id": task_id,
-        "score": score
-    }))
-
-    return score
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+        )
+        text = response.choices[0].message.content.strip()
+        text = text.replace("```json", "").replace("```", "").strip()
+        return json.loads(text)
+    except Exception as e:
+        return None
 
 # ================================
-# MAIN
+# RUN BENCHMARK
 # ================================
+def run_benchmark():
+    tasks = ["task1_easy", "task2_medium", "task3_hard"]
+    
+    for task_name in tasks:
+        env = EmailTriageEnv(task_name)
+        obs_obj = env.reset()
+        observation = obs_obj.model_dump()
+        
+        print(f"[START] task={task_name} env=email-triage model={MODEL_NAME}")
+        
+        step_count = 0
+        rewards_history = []
+        done = False
+        success = False
+        
+        while not done:
+            step_count += 1
+            error_msg = "null"
+            
+            action_data = ask_agent(observation)
+            
+            if not action_data:
+                error_msg = "llm_json_parse_error"
+                action_data = {"priority": "normal", "category": "support", "action": "reply"}
+            
+            action_str = json.dumps(action_data).replace(" ", "")
+            
+            try:
+                from environment import Action
+                act_obj = Action(**action_data)
+                obs_obj, reward_obj, done, info = env.step(act_obj)
+                reward = reward_obj.score
+                rewards_history.append(reward)
+            except Exception as e:
+                error_msg = str(e).replace("\n", " ").replace(",", ";")
+                reward = 0.00
+                rewards_history.append(reward)
+                done = True
+                
+            formatted_reward = f"{float(reward):.2f}"
+            formatted_done = str(done).lower()
+            
+            print(f"[STEP] step={step_count} action={action_str} reward={formatted_reward} done={formatted_done} error={error_msg}")
+            
+            if done:
+                success = reward >= 1.0
+                break
+
+        formatted_success = str(success).lower()
+        rewards_str = ",".join([f"{float(r):.2f}" for r in rewards_history])
+        print(f"[END] success={formatted_success} steps={step_count} rewards={rewards_str}")
+
 if __name__ == "__main__":
-    scores = []
-
-    scores.append(run_task(TASK1, grade1))
-    scores.append(run_task(TASK2, grade2))
-    scores.append(run_task(TASK3, grade3))
-
-    avg = round(sum(scores) / len(scores), 2)
-    print(json.dumps({
-        "event": "SUMMARY",
-        "scores": scores,
-        "average": avg
-    }))
+    run_benchmark()
