@@ -1,7 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from server.environment import EmailTriageEnv
+import os
+import sys
 
+# Yeh line Python ko batayegi ki bahar wale folder mein bhi files dhundo
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from environment import EmailTriageEnv
 app = FastAPI()
 env = EmailTriageEnv()
 
