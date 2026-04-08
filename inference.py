@@ -1,7 +1,10 @@
 import os
 import json
 from openai import OpenAI
-from environment import EmailTriageEnv
+try:
+    from environment import EmailTriageEnv
+except ImportError:
+    from server.environment import EmailTriageEnv
 
 # ================================
 # SETUP CLIENT
