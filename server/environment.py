@@ -1,5 +1,8 @@
-import openenv
-from typing import Any, Dict
+try:
+    import openenv
+except ImportError:
+    # If the package is named differently in some environments
+    import openenv_core as openenvfrom typing import Any, Dict
 
 class EmailTriageEnv(openenv.OpenEnv):
     def __init__(self):
