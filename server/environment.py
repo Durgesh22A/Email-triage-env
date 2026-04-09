@@ -2,8 +2,12 @@ from typing import Any, Dict, List
 
 # Bypassing the library class to avoid AttributeError
 class EmailTriageEnv:
-    def __init__(self):
+    # Adding *args and **kwargs to handle any arguments like task_name
+    def __init__(self, *args, **kwargs):
+        super().__init__()
         self.name = "email-triage-env"
+        # task_name can be extracted if needed, or ignored safely
+        self.task_name = args[0] if args else kwargs.get("task_name", "default")
         
     def reset(self) -> Dict[str, Any]:
         return {"status": "success", "message": "Environment reset successful"}
