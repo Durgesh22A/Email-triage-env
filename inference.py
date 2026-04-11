@@ -61,15 +61,15 @@ def run_benchmark():
         obs_obj = env.reset()
         # Check if it's already a dictionary to avoid the model_dump error
         if isinstance(obs_obj, dict):
-        observation = obs_obj
+            observation = obs_obj
         else:
             # If it's a Pydantic object, try model_dump() or dict()
             if hasattr(obs_obj, "model_dump"):
                 observation = obs_obj.model_dump()
             elif hasattr(obs_obj, "dict"):
-        observation = obs_obj.dict()
-    else:
-        observation = obs_obj
+                observation = obs_obj.dict()
+            else:
+                observation = obs_obj
         
         print(f"[START] task={task_name} env=email-triage model={MODEL_NAME}")
         
