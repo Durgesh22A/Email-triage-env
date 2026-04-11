@@ -3,7 +3,7 @@ import os
 import sys
 import uvicorn
 
-# Path configuration to find environment.py
+# Path configuration
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from environment import EmailTriageEnv
 
@@ -26,7 +26,6 @@ async def get_score():
 async def step(action: dict):
     return env.step(action)
 
-# VALIDATOR REQUIREMENT: main() function and __name__ block
 def main():
     uvicorn.run(app, host="0.0.0.0", port=7860)
 
